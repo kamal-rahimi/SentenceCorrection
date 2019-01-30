@@ -8,6 +8,7 @@ from keras.models import Sequential
 from keras.layers import Embedding, LSTM, Dense, Activation
 from collections import Counter
 import string
+import numpy as np
 
 def load_text(file_path):
     """
@@ -45,8 +46,8 @@ def create_vocabulary(text, max_vocab_size = 400):
     """
     words = text.split()
     freq = Counter(words)
-    word2id = {'<pad>' : 0, '<UNK>' : 1}
-    id2word = {0 : '<pad>', 1 : '<UNK>'}
+    word2id = {'<PAD>' : 0, '<UNK>' : 1, '<EOS>' : 2}
+    id2word = {0 : '<PAD>', 1 : '<UNK>', 2 : '<EOS>'}
 
     for word, _ in freq.most_common():
         id = len(word2id)
@@ -86,10 +87,24 @@ def strip_punctuation(text):
     clean_text = text.translate(translator)
     return clean_text
 
-def prepare_data(cleaned_data):
+def prepare_data(word2id, token_sentences, max_sentence_length = 15 ):
     """
     """
-    pass
+    data = []
+    for sentence in token_sentences:
+        sentence = strip_punctuation(sentence)
+        token_words = sentence.split()
+        print(token_words)
+        size = min( len(token_words), max_sentence_length - 1 )
+        senetence_words_padded = ['<PAD>']*(max_sentence_length - size) + token_words + ['<EOS>']
+        #print(senetence_words_padded)
+        senetence_words_id_padded = [word2id[word] if word in word2id else word2id['<UNK>'] for word in senetence_words_padded]
+        #senetence_words_id_padded = [word2id[word] for word in senetence_words_padded]
+        data.append(senetence_words_id_padded)
+
+    print(data)
+
+    return np.array(data)
 
 def create_model(vocab_size, embedding_dim=40):
     """
@@ -131,9 +146,9 @@ def main():
     data = load_text(data_path)
 
     cleaned_data = clean_text(data)
-    create_vocabulary(cleaned_data)
+    word2id, id2word = create_vocabulary(cleaned_data)
     tokenize_sentence(cleaned_data)
-    prepare_data(cleaned_data) #     x_train, y_train, x_test, y_test
+    prepare_data(word2id, ["this is a test", "Second sentence"]) #     x_train, y_train, x_test, y_test
     vocab_size=2000
     create_model(vocab_size)
     train_model()
