@@ -174,7 +174,7 @@ def generate_text(model, word2id, id2word, vocab_size, max_sentence_words = 12, 
     for _ in range(num_sentences):
         seq = [word2id['<BGN>']]
         for i in range(12):
-            x = pad_sequences([seq], maxlen=11, truncating='pre')
+            x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
             y = model.predict_classes(x, verbose=0)
             y_prob = model.predict(x, verbose=0)
             p = y_prob.reshape(-1,1)[:,0]
@@ -195,6 +195,25 @@ def generate_text(model, word2id, id2word, vocab_size, max_sentence_words = 12, 
         print(senetnce + '\n')
     return text
 
+def analyze_senetnce(model, word2id, input_sentence, max_sentence_words = 12):
+    input_sentence = strip_punctuation(input_sentence)
+    sentence_words = input_sentence.split()
+    sentence_words = ['<BGN>'] + sentence_words + ['<EOS>']
+    print(sentence_words)
+    sentence_words_id = [word2id[word] if word in word2id else word2id['<UNK>'] for word in sentence_words]
+    p = 1
+    for i in range(1, len(sentence_words)-1):
+        seq = sentence_words_id[:i]
+        x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
+        y = sentence_words_id[i]
+        predict_prob = model.predict(x, verbose=0)
+        predict_prob = np.array(predict_prob).reshape(-1,)
+        prob = predict_prob[y]
+        print(prob/max(predict_prob))
+        p = p*prob
+
+    print('Senetnce liklihood = ')
+    print(p)
 
 def main():
 
@@ -225,6 +244,7 @@ def main():
         model = load_model('word_lm.h5')
 
     text = generate_text(model, word2id, id2word, vocab_size, max_sentence_words, 10)
+    analyze_senetnce(model, word2id, input_sentence='This is a test for the word processing.')
 
 if __name__ == '__main__':
     main()
