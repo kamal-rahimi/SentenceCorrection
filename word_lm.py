@@ -106,6 +106,7 @@ def prepare_data(word2id, token_sentences, max_sentence_words = 12 ):
     data = []
     for sentence in token_sentences:
         sentence = strip_punctuation(sentence)
+        sentence = sentence.lower()
         sentence_token_words = sentence.split()
         sentence_token_words = ['<BGN>'] + sentence_token_words + ['<EOS>']
         senetnce_size = min(len(sentence_token_words), max_sentence_words)
@@ -195,25 +196,89 @@ def generate_text(model, word2id, id2word, vocab_size, max_sentence_words = 12, 
         print(senetnce + '\n')
     return text
 
-def analyze_senetnce(model, word2id, input_sentence, max_sentence_words = 12):
+def analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence, max_sentence_words = 12):
     input_sentence = strip_punctuation(input_sentence)
+    input_sentence = input_sentence.lower()
     sentence_words = input_sentence.split()
     sentence_words = ['<BGN>'] + sentence_words + ['<EOS>']
     print(sentence_words)
     sentence_words_id = [word2id[word] if word in word2id else word2id['<UNK>'] for word in sentence_words]
-    p = 1
-    for i in range(1, len(sentence_words)-1):
-        seq = sentence_words_id[:i]
+    tested_words = ['<BGN>']+ ['<EOS>']
+    for test_word_in in range(0, len(sentence_words)):
+        sentence_words_ids = []
+        sentence_words_ids_p = []
+        for index in range(1, len(sentence_words)-2):
+            P = [1]
+            p = 1
+            for i in range(1, len(sentence_words)-1):
+                seq = sentence_words_id[:i]
+                x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
+                y = sentence_words_id[i]
+                predict_prob = model.predict(x, verbose=0)
+                predict_prob = np.array(predict_prob).reshape(-1,)
+                prob = predict_prob[y]
+#                print(prob)
+                P.append(prob)
+                p = p*prob
+
+#            new_words = [id2word[id] for id in sentence_words_id]
+#            senetnce = ' '.join(new_words)
+#            print(senetnce)
+#
+#            print('Senetnce liklihood = ')
+#            print(p)
+#            print('\n')
+            if index==1:
+                selection_P = []
+                for id_in in range(0, len(sentence_words)):
+                    if id2word[sentence_words_id[id_in]] not in tested_words:
+                        selection_P.append(P[id_in])
+                    else:
+                        selection_P.append(1)
+                print(P)
+                print('\n')
+                print(selection_P)
+                print('\n')
+                least_prob = np.argmin(selection_P)
+                sentence_words_id_old = sentence_words_id
+                least_prob_word = sentence_words_id.pop(least_prob)
+                tested_words.append(id2word[least_prob_word])
+            else:
+                least_prob_word = sentence_words_id.pop(index)
+
+            sentence_words_id.insert(index+1, least_prob_word)
+            sentence_words_ids.append(sentence_words_id_old)
+            sentence_words_ids_p.append(p)
+
+        most_likely_senetnce_index = np.argmax(sentence_words_ids_p)
+        sentence_words_id = sentence_words_ids[most_likely_senetnce_index]
+        new_words = [id2word[id] for id in sentence_words_id]
+        senetnce = ' '.join(new_words)
+        print(senetnce)
+        print('liklihood:')
+        print(sentence_words_ids_p[most_likely_senetnce_index])
+        print('\n')
+
+"""
+    seq_input = sentence_words_id
+    seq = []
+    seq_input.remove(word2id['<BGN>'])
+    #seq_input.remove(word2id['<EOS>'])
+    seq.append(word2id['<BGN>'])
+    for j in range(0,len(sentence_words)-1):
         x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
-        y = sentence_words_id[i]
         predict_prob = model.predict(x, verbose=0)
         predict_prob = np.array(predict_prob).reshape(-1,)
-        prob = predict_prob[y]
-        print(prob/max(predict_prob))
-        p = p*prob
+        prob = [predict_prob[k] if k in seq_input else 0 for k in range(0, vocab_size)]
+        predict_word = np.argmax(np.array(prob))
+        seq.append(predict_word)
+        seq_input.remove(predict_word)
 
-    print('Senetnce liklihood = ')
-    print(p)
+    new_words = [id2word[id] for id in seq]
+    senetnce = ' '.join(new_words)
+    print(senetnce + '\n')
+
+"""
 
 def main():
 
@@ -227,24 +292,24 @@ def main():
     data = load_text(data_path)
 
     cleaned_data = clean_text(data)
-    vocab_size = 10000
+    vocab_size = 40000
     word2id, id2word = create_vocabulary(cleaned_data, vocab_size)
     token_senetnces = tokenize_sentence(cleaned_data)
     print(len(token_senetnces))
     max_sentence_words = 12
     X, y = prepare_data(word2id, token_senetnces[:16000], max_sentence_words) #     x_train, y_train, x_test, y_test
 
-    if os.path.isfile("word_lm.h5") == False:
+    if os.path.isfile("word_lm-40.h5") == False:
         model = create_model(vocab_size)
         model.summary()
         model = train_model(model, X, y)
-        model.save('word_lm.h5')
+        model.save('word_lm-40.h5')
         evaluate_model(model)
     else:
-        model = load_model('word_lm.h5')
+        model = load_model('word_lm-40.h5')
 
-    text = generate_text(model, word2id, id2word, vocab_size, max_sentence_words, 10)
-    analyze_senetnce(model, word2id, input_sentence='This is a test for the word processing.')
+    #text = generate_text(model, word2id, id2word, vocab_size, max_sentence_words, 10)
+    analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence='We will a find solution.')
 
 if __name__ == '__main__':
     main()
