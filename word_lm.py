@@ -16,6 +16,8 @@ from numpy.random import choice
 
 from keras.preprocessing.sequence import pad_sequences
 
+from itertools import permutations
+
 def load_text(file_path):
     """
     Load text filename
@@ -200,85 +202,65 @@ def analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence, max_se
     input_sentence = strip_punctuation(input_sentence)
     input_sentence = input_sentence.lower()
     sentence_words = input_sentence.split()
-    sentence_words = ['<BGN>'] + sentence_words + ['<EOS>']
     print(sentence_words)
     sentence_words_id = [word2id[word] if word in word2id else word2id['<UNK>'] for word in sentence_words]
-    tested_words = ['<BGN>']+ ['<EOS>']
-    for test_word_in in range(0, len(sentence_words)):
-        sentence_words_ids = []
-        sentence_words_ids_p = []
-        for index in range(1, len(sentence_words)-2):
-            P = [1]
-            p = 1
-            for i in range(1, len(sentence_words)-1):
-                seq = sentence_words_id[:i]
-                x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
-                y = sentence_words_id[i]
-                predict_prob = model.predict(x, verbose=0)
-                predict_prob = np.array(predict_prob).reshape(-1,)
-                prob = predict_prob[y]
-#                print(prob)
-                P.append(prob)
-                p = p*prob
 
-#            new_words = [id2word[id] for id in sentence_words_id]
-#            senetnce = ' '.join(new_words)
-#            print(senetnce)
-#
-#            print('Senetnce liklihood = ')
-#            print(p)
-#            print('\n')
-            if index==1:
-                selection_P = []
-                for id_in in range(0, len(sentence_words)):
-                    if id2word[sentence_words_id[id_in]] not in tested_words:
-                        selection_P.append(P[id_in])
-                    else:
-                        selection_P.append(1)
-                print(P)
-                print('\n')
-                print(selection_P)
-                print('\n')
-                least_prob = np.argmin(selection_P)
-                sentence_words_id_old = sentence_words_id
-                least_prob_word = sentence_words_id.pop(least_prob)
-                tested_words.append(id2word[least_prob_word])
-            else:
-                least_prob_word = sentence_words_id.pop(index)
+    sentence_words_id_permutations = []
+    window = 5
+    num_iterations = max(1, len(sentence_words_id) - window + 1)
+    for i in range(0, num_iterations):
+        window_permutation = [ sentence_words_id[0:i] + list(l) + sentence_words_id[i+window:] for l in permutations(sentence_words_id[i:window+i]) ]
+        #print(window_permutation)
+        #it_sentence_words_id_permutations = [sentence_words_id[0:i]] + window_permutation + [sentence_words_id[i+window:]]
+        for per in window_permutation:
+            sentence_words_id_permutations.append(per)
 
-            sentence_words_id.insert(index+1, least_prob_word)
-            sentence_words_ids.append(sentence_words_id_old)
-            sentence_words_ids_p.append(p)
+#    print(sentence_words_id_permutations)
 
-        most_likely_senetnce_index = np.argmax(sentence_words_ids_p)
-        sentence_words_id = sentence_words_ids[most_likely_senetnce_index]
-        new_words = [id2word[id] for id in sentence_words_id]
-        senetnce = ' '.join(new_words)
-        print(senetnce)
-        print('liklihood:')
-        print(sentence_words_ids_p[most_likely_senetnce_index])
-        print('\n')
+#   sentence_words_id_permutations = list(permutations(sentence_words_id))
 
-"""
-    seq_input = sentence_words_id
-    seq = []
-    seq_input.remove(word2id['<BGN>'])
-    #seq_input.remove(word2id['<EOS>'])
-    seq.append(word2id['<BGN>'])
-    for j in range(0,len(sentence_words)-1):
-        x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
-        predict_prob = model.predict(x, verbose=0)
-        predict_prob = np.array(predict_prob).reshape(-1,)
-        prob = [predict_prob[k] if k in seq_input else 0 for k in range(0, vocab_size)]
-        predict_word = np.argmax(np.array(prob))
-        seq.append(predict_word)
-        seq_input.remove(predict_word)
+#    sentence_words_id_permutations = word2id['<BGN>'] + sentence_words_id_permutations + word2id['<EOS>']
+    num_permutations = len(sentence_words_id_permutations)
+    senrence_size = len(sentence_words_id_permutations[0])
+    sentence_words_id_permutations_prob = []
+    for sentence_order_index in range(0, num_permutations):
+        sentence_order_words_id = list(sentence_words_id_permutations[sentence_order_index])
+    #    print(sentence_order_words_id)
+        sentence_order_words_id = [word2id['<BGN>']] + sentence_order_words_id + [word2id['<EOS>']]
+        P_Word = [1]
+        p_sentence = 1
+        for word_index in range(1, senrence_size+2):
+            seq = sentence_order_words_id[:word_index]
+            x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
+            y = sentence_order_words_id[word_index]
+            predict_prob = model.predict(x, verbose=0)
 
-    new_words = [id2word[id] for id in seq]
-    senetnce = ' '.join(new_words)
-    print(senetnce + '\n')
+            predict_prob = np.array(predict_prob).reshape(-1,)
+            prob = predict_prob[y]
+            P_Word.append(prob)
+            p_sentence = p_sentence*prob
 
-"""
+        sentence_words_id_permutations_prob.append(p_sentence)
+
+    input_sentence_words_id = sentence_words_id_permutations[0]
+    input_sentence_prob = sentence_words_id_permutations_prob[0]
+    input_sentence_words = [id2word[id] for id in input_sentence_words_id]
+    input_sentence = ' '.join(input_sentence_words)
+    print(input_sentence)
+    print(input_sentence_prob)
+    print('\n')
+
+
+    most_likely_word_order_index = np.argmax(sentence_words_id_permutations_prob)
+    most_likely_word_order_prob = sentence_words_id_permutations_prob[most_likely_word_order_index]
+    most_likely_words_id_order = sentence_words_id_permutations[most_likely_word_order_index]
+
+    most_likely_words_order = [id2word[id] for id in most_likely_words_id_order]
+    most_likely_sentence = ' '.join(most_likely_words_order)
+    print(most_likely_sentence)
+    print(most_likely_word_order_prob)
+    print('\n\n')
+
 
 def main():
 
@@ -309,7 +291,10 @@ def main():
         model = load_model('word_lm-40.h5')
 
     #text = generate_text(model, word2id, id2word, vocab_size, max_sentence_words, 10)
-    analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence='We will a find solution.')
+    # This is a test project
+    # cat is there in a the room
+    # school will we to go
+    analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence='it will rain tomorrow')
 
 if __name__ == '__main__':
     main()
