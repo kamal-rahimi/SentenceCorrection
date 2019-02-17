@@ -10,6 +10,8 @@ from collections import Counter
 import string
 import numpy as np
 
+from keras import backend as k
+
 import os
 
 from numpy.random import choice
@@ -18,9 +20,19 @@ from keras.preprocessing.sequence import pad_sequences
 
 from itertools import permutations
 
-def load_text(file_path):
+
+def config_gpu():
+    """Configure tensorflow to run on GPU
+
     """
-    Load text filename
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 1
+    k.tensorflow_backend.set_session(tf.Session(config=config))
+
+
+def load_text(file_path):
+    """ Load text filename
     Args:
         data file path (text file)
     Returns:
@@ -61,31 +73,26 @@ def create_vocabulary(text, max_vocab_size = 2000):
         id = len(word2id)
         word2id[word] = id
         id2word[id] = word
-        if id > max_vocab_size - 4:
+        if id == max_vocab_size - 1 :
             break
-#    with open("temp.txt", 'w') as f:
-#        for key, val in word2id.items():
-#            f.write("%s: %s\n" % (key, val))
 
     return word2id, id2word
 
+
 def tokenize_sentence(text):
-    """
-    Tokenize senetences
+    """ Tokenize senetences
     Args:
-        text
+        text (str)
     Returns:
-        tokenized senetences (python list of sentences)
+        tokenized sentences (python list of sentences)
     """
     token_sentences = tokenize.sent_tokenize(text)
 
-#    with open ("./tokenize_sentence.tx","w") as t_s:
-#        t_s.write('\n'.join(token_sentences) )
-
     return token_sentences
 
+
 def strip_punctuation(text):
-    """ Remove puctuations from text
+    """ Remove punctuations from text
     Args:
         text(str)
     Returns
@@ -95,15 +102,16 @@ def strip_punctuation(text):
     clean_text = text.translate(translator)
     return clean_text
 
+
 def prepare_data(word2id, token_sentences, max_sentence_words = 12 ):
-    """Prepares dataset for a longuage model
+    """ Prepares dataset for the model
     Args:
         word2id: dictionary to convert from words to id
-        token_sentences: a python array of senetnces
-        max_sentence_words: maximim senetnce length
+        token_sentences: a python array of sentences
+        max_sentence_words: maximum number of words in a senetnce
     Return:
-        X: sequences of words
-        y: Next word in each sequnce
+        X: Python array of words sequnces
+        y: Python array of next word in each sequnce
     """
     data = []
     for sentence in token_sentences:
@@ -111,25 +119,21 @@ def prepare_data(word2id, token_sentences, max_sentence_words = 12 ):
         sentence = sentence.lower()
         sentence_token_words = sentence.split()
         sentence_token_words = ['<BGN>'] + sentence_token_words + ['<EOS>']
-        senetnce_size = min(len(sentence_token_words), max_sentence_words)
-    #    print(token_words)
-        for word_size in range(2, senetnce_size+1):
-            token_words = sentence_token_words[: word_size]
-            num_pads = max_sentence_words - word_size
+        sentence_size = min(len(sentence_token_words), max_sentence_words)
+        for word_index in range(2, sentence_size+1):
+            token_words = sentence_token_words[: word_index]
+            num_pads = max_sentence_words - word_index
             token_words_padded =  ['<PAD>']*num_pads + token_words
-            #print(token_words_padded)
-            token_words_padded_id = [word2id[word] if word in word2id else word2id['<UNK>'] for word in token_words_padded]
-            #senetence_words_id_padded = [word2id[word] for word in senetence_words_padded]
-            data.append(token_words_padded_id)
+            token_words_id_padded = [word2id[word] if word in word2id else word2id['<UNK>'] for word in token_words_padded]
+            data.append(token_words_id_padded)
 
-    #print(data)
     data = np.array(data)
     X = data[:, :-1]
     y = data[:,-1]
     return X, y
 
 def create_model(vocab_size, embedding_dim=40):
-    """Create keras model
+    """ Create keras model
     Args:
         vocabulary vocab_size
         embedding dimmestion
@@ -144,7 +148,7 @@ def create_model(vocab_size, embedding_dim=40):
     ])
     return model
 
-def train_model(model, X, y):
+def train_model(model, X, y, epochs=100):
     """ Trains the keras model
     Args:
         model: sequential model
@@ -156,47 +160,48 @@ def train_model(model, X, y):
     model.compile(loss='sparse_categorical_crossentropy',
                   optimizer='Nadam',
                   metrics=['accuracy'])
-    model.fit(X, y, epochs=100, verbose=2)
+    model.fit(X, y, epochs, verbose=2)
     return model
 
-def evaluate_model(model):
-    """
-    """
-    pass
 
-def generate_text(model, word2id, id2word, vocab_size, max_sentence_words = 12, num_sentences = 1):
+def generate_text(model, word2id, id2word, vocab_size, input_seq = [], max_sentence_words = 12, num_sentences = 1):
     """ generates new senetnces based on longuage models
     Args:
+        model: trained model object
+        word2id: dictionary to convert from word to id
+        id2word: dictionary to convert from id to word
+        vocab_size: vocabulary size
+        input_seq: input sequnce of words to be completed as sentence
         max_sentence_words: maximum number of words in a senetnce
-        num_sentences: number of sentnces to be genarted
+        num_sentences: number of sentnces to be generated
 
     Return:
-        text: a paython list of genrated senetnces
+        sentnces: a paython list of completed senetnces based on input sequnce
     """
-    text = []
+    input_seq = strip_punctuation(input_seq)
+    input_seq = input_seq.lower()
+    input_seq_token_words = input_seq.split()
+
+    sentences = []
     for _ in range(num_sentences):
-        seq = [word2id['<BGN>']]
-        for i in range(12):
+        seq = [word2id['<BGN>']] +  [word2id[word] if word in word2id else word2id['<UNK>'] for word in input_seq_token_words]
+        input_seq_size = len(seq)
+        for i in range(0, max_sentence_words - input_seq_size + 1):
             x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
-            y = model.predict_classes(x, verbose=0)
+            #y = model.predict_classes(x, verbose=0)
             y_prob = model.predict(x, verbose=0)
             p = y_prob.reshape(-1,1)[:,0]
-            a = np.array(range(0,vocab_size)).reshape(-1,1)[:,0]
-            if i == 0:
-                predict_word = choice(a, p=p)
-            else:
-                for k in y:
-                    if k != word2id['<UNK>']:
-                        predict_word = k
-
+            a = np.array(range(0, vocab_size)).reshape(-1,1)[:,0]
+            p[word2id['<UNK>']] = 0
+            p = p / np.sum(p)
+            predict_word = choice(a, p=p)
             seq.append(predict_word)
             if predict_word == word2id['<EOS>']:
                 break
         new_words = [id2word[id] for id in seq]
         senetnce = ' '.join(new_words)
-        text.append(senetnce)
-        print(senetnce + '\n')
-    return text
+        sentences.append(senetnce)
+    return sentences
 
 def analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence, max_sentence_words = 12):
     input_sentence = strip_punctuation(input_sentence)
@@ -210,16 +215,11 @@ def analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence, max_se
     num_iterations = max(1, len(sentence_words_id) - window + 1)
     for i in range(0, num_iterations):
         words_id_permutations = [ sentence_words_id[0:i] + list(l) for l in permutations(sentence_words_id[i:window+i]) ]
-        #print(window_permutation)
-        #it_sentence_words_id_permutations = [sentence_words_id[0:i]] + window_permutation + [sentence_words_id[i+window:]]
-
         num_permutations = len(words_id_permutations)
         sentence_size = len(words_id_permutations[0])
-    #    words_id_permutations = []
         words_id_permutations_prob = []
         for words_id_order_index in range(0, num_permutations):
             words_id_order = list(words_id_permutations[words_id_order_index])
-        #    print(sentence_order_words_id)
             words_id_order = [word2id['<BGN>']] + words_id_order
             if words_id_order_index == num_permutations-1:
                 words_id_order += [word2id['<EOS>']]
@@ -256,19 +256,26 @@ def main():
     # construct the argument parser and parse the arguments
     ap = argparse.ArgumentParser()
     #ap.add_argument("-m", "--model", type=str, default="knn", help="type of python machine learning model to use")
-    ap.add_argument("-p", "--path", type=str, default="./data/English.txt", help="Specify the data path")
+    ap.add_argument("-p", "--path",  type=str, default="./data/English.txt", help="Specify the data path")
+    ap.add_argument("-v", "--vsize", type=int, default=40000,                help="Specify the vocabulary size")
+    ap.add_argument("-s", "--ssize", type=int, default=12,                   help="Specify maximum senetnce size (number of words)")
+    ap.add_argument("-g", "--gpu",                                           help="Specify to use GPU for training the model", action='store_true')
     args = vars(ap.parse_args())
     data_path = args["path"]
+    vocab_size = args["vsize"]
+    max_sentence_words = args["ssize"]
+    use_gpu = args["gpu"]
+
+    if use_gpu:
+        config_gpu()
 
     data = load_text(data_path)
-
     cleaned_data = clean_text(data)
-    vocab_size = 40000
     word2id, id2word = create_vocabulary(cleaned_data, vocab_size)
     token_senetnces = tokenize_sentence(cleaned_data)
     print(len(token_senetnces))
-    max_sentence_words = 12
-    X, y = prepare_data(word2id, token_senetnces[:16000], max_sentence_words) #     x_train, y_train, x_test, y_test
+
+    X, y = prepare_data(word2id, token_senetnces[:16000], max_sentence_words)
 
     if os.path.isfile("word_lm-40.h5") == False:
         model = create_model(vocab_size)
@@ -279,14 +286,18 @@ def main():
     else:
         model = load_model('word_lm-40.h5')
 
-    #text = generate_text(model, word2id, id2word, vocab_size, max_sentence_words, 10)
+    sentences = generate_text(model, word2id, id2word, vocab_size, 'life is about ' , 12, 10)
+    for sentence in sentences:
+        print(sentence)
     # This is a test project
     # cat is there in a the room
     # school will we to go
     # it will rain tomorrow
     # solution proposed a they new
     # are many there people agree do who not
-    analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence='are many there people agree do who not')
+    #analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence='are many there people agree do who not')
+
+
 
 if __name__ == '__main__':
     main()
