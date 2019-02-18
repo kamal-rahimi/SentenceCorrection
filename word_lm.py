@@ -22,7 +22,7 @@ from itertools import permutations
 
 
 def config_gpu():
-    """Configure tensorflow to run on GPU
+    """ Configure tensorflow to run on GPU
 
     """
     config = tf.ConfigProto()
@@ -164,24 +164,24 @@ def train_model(model, X, y, epochs=100):
     return model
 
 
-def generate_text(model, word2id, id2word, vocab_size, input_seq = [], max_sentence_words = 12, num_sentences = 1):
+def generate_text(model, word2id, id2word, input_seq = [], max_sentence_words = 12, num_sentences = 1):
     """ generates new senetnces based on longuage models
     Args:
-        model: trained model object
+        model: trained longuage model object
         word2id: dictionary to convert from word to id
         id2word: dictionary to convert from id to word
-        vocab_size: vocabulary size
-        input_seq: input sequnce of words to be completed as sentence
+        input_seq (text): input sequnce of words to be completed as sentence
         max_sentence_words: maximum number of words in a senetnce
         num_sentences: number of sentnces to be generated
 
     Return:
-        sentnces: a paython list of completed senetnces based on input sequnce
+        sentences: a paython list of completed senetnces based on input sequnce
     """
     input_seq = strip_punctuation(input_seq)
     input_seq = input_seq.lower()
     input_seq_token_words = input_seq.split()
 
+    vocab_size = len(word2id)
     sentences = []
     for _ in range(num_sentences):
         seq = [word2id['<BGN>']] +  [word2id[word] if word in word2id else word2id['<UNK>'] for word in input_seq_token_words]
@@ -198,12 +198,46 @@ def generate_text(model, word2id, id2word, vocab_size, input_seq = [], max_sente
             seq.append(predict_word)
             if predict_word == word2id['<EOS>']:
                 break
+
         new_words = [id2word[id] for id in seq]
         senetnce = ' '.join(new_words)
         sentences.append(senetnce)
+
     return sentences
 
-def analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence, max_sentence_words = 12):
+def analyze_sentence(model, words_id_order, max_sentence_words):
+    """
+    """
+    p_words = [1]
+    p_sentence = 1
+    for word_index in range(1, len(words_id_order)-1):
+        seq = words_id_order[:word_index]
+        x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
+        y = words_id_order[word_index]
+        predict_prob = model.predict(x, verbose=0)
+
+        predict_prob = np.array(predict_prob).reshape(-1,)
+        prob = predict_prob[y]
+        p_words.append(prob)
+        p_sentence = p_sentence*prob
+
+    return p_sentence, p_words
+
+def correct_senetnce(model, word2id, id2word, window_size, input_sentence, max_sentence_words = 12):
+    """ analyzes the inout sentnces and reorders the word to form a senetnces which
+    has the highest liklihood in the longuage model.
+
+    Args:
+        model: trained longuage model object
+        word2id: dictionary to convert from word to id
+        id2word: dictionary to convert from id to word
+        window_size:  word reordering search window size
+        input_sentnce (text): input sentnce
+        max_sentence_words: maximum number of words in a senetnce
+    Returns:
+    most_likely_sentence: the word reordred senetnce that has highes liklihood in the longuage model
+    most_likely_word_order_prob: liklihood of the reordred sentence
+    """
     input_sentence = strip_punctuation(input_sentence)
     input_sentence = input_sentence.lower()
     sentence_words = input_sentence.split()
@@ -211,30 +245,20 @@ def analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence, max_se
     sentence_words_id = [word2id[word] if word in word2id else word2id['<UNK>'] for word in sentence_words]
 
     sentence_words_id_permutations = []
-    window = 5
-    num_iterations = max(1, len(sentence_words_id) - window + 1)
+    num_iterations = max(1, len(sentence_words_id) - window_size + 1)
     for i in range(0, num_iterations):
-        words_id_permutations = [ sentence_words_id[0:i] + list(l) for l in permutations(sentence_words_id[i:window+i]) ]
+        words_id_permutations = [ sentence_words_id[0 : i] + list(l) for l in permutations(sentence_words_id[i : window_size + i]) ]
         num_permutations = len(words_id_permutations)
         sentence_size = len(words_id_permutations[0])
+
         words_id_permutations_prob = []
         for words_id_order_index in range(0, num_permutations):
             words_id_order = list(words_id_permutations[words_id_order_index])
             words_id_order = [word2id['<BGN>']] + words_id_order
             if words_id_order_index == num_permutations-1:
-                words_id_order += [word2id['<EOS>']]
-            P_Word = [1]
-            p_sentence = 1
-            for word_index in range(1, len(words_id_order)-1):
-                seq = words_id_order[:word_index]
-                x = pad_sequences([seq], maxlen=max_sentence_words-1, truncating='pre')
-                y = words_id_order[word_index]
-                predict_prob = model.predict(x, verbose=0)
+                words_id_order = words_id_order + [word2id['<EOS>']]
 
-                predict_prob = np.array(predict_prob).reshape(-1,)
-                prob = predict_prob[y]
-                P_Word.append(prob)
-                p_sentence = p_sentence*prob
+            p_sentence, p_words = analyze_sentence(model, words_id_order, max_sentence_words)
 
             words_id_permutations_prob.append(p_sentence)
 
@@ -242,13 +266,13 @@ def analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence, max_se
         most_likely_word_order_prob = words_id_permutations_prob[most_likely_word_order_index]
         most_likely_words_id_order = words_id_permutations[most_likely_word_order_index]
 
-        sentence_words_id = most_likely_words_id_order + sentence_words_id[window+i:]
+        sentence_words_id = most_likely_words_id_order + sentence_words_id[window_size + i : ]
 
     most_likely_words_order = [id2word[id] for id in sentence_words_id]
     most_likely_sentence = ' '.join(most_likely_words_order)
-    print(most_likely_sentence)
-    print(most_likely_word_order_prob)
-    print('\n\n')
+
+    return most_likely_sentence, most_likely_word_order_prob
+
 
 
 def main():
@@ -282,22 +306,22 @@ def main():
         model.summary()
         model = train_model(model, X, y)
         model.save('word_lm-new.h5')
-        evaluate_model(model)
     else:
         model = load_model('word_lm-40.h5')
 
-    sentences = generate_text(model, word2id, id2word, vocab_size, 'life is about ' , 12, 10)
-    for sentence in sentences:
-        print(sentence)
+    #sentences = generate_text(model, word2id, id2word, 'to be or not to be  ' , 12, 10)
+    #for sentence in sentences:
+    #    print(sentence)
     # This is a test project
     # cat is there in a the room
     # school will we to go
     # it will rain tomorrow
     # solution proposed a they new
     # are many there people agree do who not
-    #analyze_senetnce(model, word2id, id2word, vocab_size, input_sentence='are many there people agree do who not')
+    corrected_setences, corrected_setences_liklihood = correct_senetnce(model, word2id, id2word, 5,
+                                                        input_sentence='are many there people agree do who not')
 
-
+    print(corrected_setences)
 
 if __name__ == '__main__':
     main()
