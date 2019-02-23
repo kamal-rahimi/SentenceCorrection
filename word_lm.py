@@ -1,107 +1,21 @@
 """
 Word based longuage model
 """
-
-import argparse
-from nltk import tokenize
-from keras.models import Sequential, load_model
-from keras.layers import Embedding, LSTM, Dense, Activation
-from collections import Counter
-import string
-import numpy as np
-
-from keras import backend as k
-
 import os
-
-from numpy.random import choice
+import argparse
+import pickle
 
 from keras.preprocessing.sequence import pad_sequences
+from keras.models import Sequential, load_model
+from keras.layers import Embedding, LSTM, Dense, Activation
+from keras import backend as k
+
+import numpy as np
+from numpy.random import choice
 
 from itertools import permutations
 
-
-def config_gpu():
-    """ Configure tensorflow to run on GPU
-
-    """
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-    config.gpu_options.per_process_gpu_memory_fraction = 1
-    k.tensorflow_backend.set_session(tf.Session(config=config))
-
-
-def load_text(file_path):
-    """ Load text filename
-    Args:
-        data file path (text file)
-    Returns:
-        raw text (string)
-    """
-    with open(file_path, 'r') as f:
-        text = f.read()
-
-    return text
-
-def clean_text(raw_text):
-    """
-    Clean text
-    Args:
-        raw texts
-    Returns:
-        Cleaned text
-    """
-    token_words = raw_text.split()
-    cleaned_text = ' '.join(token_words)
-    return cleaned_text
-
-def create_vocabulary(text, max_vocab_size = 2000):
-    """ Create Vocabulary dictionary
-    Args:
-        text(str)
-        max_vocab_size: maximum number of words in vocabulary
-    Returns:
-        word2id(dict): word to id mapping
-        id2word(dict): id to word mapping
-    """
-    words = text.split()
-    freq = Counter(words)
-    word2id = {'<PAD>' : 0, '<BGN>' : 1, '<UNK>' : 2, '<EOS>' : 3}
-    id2word = {0 : '<PAD>', 1 : '<BGN>', 2 : '<UNK>', 3 : '<EOS>'}
-
-    for word, _ in freq.most_common():
-        id = len(word2id)
-        word2id[word] = id
-        id2word[id] = word
-        if id == max_vocab_size - 1 :
-            break
-
-    return word2id, id2word
-
-
-def tokenize_sentence(text):
-    """ Tokenize senetences
-    Args:
-        text (str)
-    Returns:
-        tokenized sentences (python list of sentences)
-    """
-    token_sentences = tokenize.sent_tokenize(text)
-
-    return token_sentences
-
-
-def strip_punctuation(text):
-    """ Remove punctuations from text
-    Args:
-        text(str)
-    Returns
-        clean_text(str)
-    """
-    translator = str.maketrans('', '', string.punctuation)
-    clean_text = text.translate(translator)
-    return clean_text
-
+from nlp_tools import load_text, clean_text, create_vocabulary, strip_punctuations, tokenize_sentence
 
 def prepare_data(word2id, token_sentences, max_sentence_words = 12 ):
     """ Prepares dataset for the model
@@ -115,7 +29,7 @@ def prepare_data(word2id, token_sentences, max_sentence_words = 12 ):
     """
     data = []
     for sentence in token_sentences:
-        sentence = strip_punctuation(sentence)
+        sentence = strip_punctuations(sentence)
         sentence = sentence.lower()
         sentence_token_words = sentence.split()
         sentence_token_words = ['<BGN>'] + sentence_token_words + ['<EOS>']
@@ -133,7 +47,7 @@ def prepare_data(word2id, token_sentences, max_sentence_words = 12 ):
     return X, y
 
 def create_model(vocab_size, embedding_dim=40):
-    """ Create keras model
+    """ Creates longuage model using keras
     Args:
         vocabulary vocab_size
         embedding dimmestion
@@ -164,8 +78,8 @@ def train_model(model, X, y, epochs=100):
     return model
 
 
-def generate_text(model, word2id, id2word, input_seq = [], max_sentence_words = 12, num_sentences = 1):
-    """ generates new senetnces based on longuage models
+def finish_sentence(model, word2id, id2word, input_seq = [], max_sentence_words = 12, num_sentences = 1):
+    """ genrates a senetnce based on input words sequnce and the longuage model
     Args:
         model: trained longuage model object
         word2id: dictionary to convert from word to id
@@ -177,7 +91,7 @@ def generate_text(model, word2id, id2word, input_seq = [], max_sentence_words = 
     Return:
         sentences: a paython list of completed senetnces based on input sequnce
     """
-    input_seq = strip_punctuation(input_seq)
+    input_seq = strip_punctuations(input_seq)
     input_seq = input_seq.lower()
     input_seq_token_words = input_seq.split()
 
@@ -205,8 +119,15 @@ def generate_text(model, word2id, id2word, input_seq = [], max_sentence_words = 
 
     return sentences
 
-def analyze_sentence(model, words_id_order, max_sentence_words):
-    """
+def analyze_sequence(model, words_id_order, max_sentence_words):
+    """ Computes the liklihood of the input sequnce of words using the longuage model
+        Args:
+            model: trained longuage model object
+            words_ids: inout sequnce of word ids
+            max_sentence_words: maximum number of words in a senetnce
+        Returns:
+            p_sentence: the liklihood of inout sequnce in the longuage model
+            p_words: a python array of the liklihood of each word given its predecessor words
     """
     p_words = [1]
     p_sentence = 1
@@ -223,7 +144,7 @@ def analyze_sentence(model, words_id_order, max_sentence_words):
 
     return p_sentence, p_words
 
-def correct_senetnce(model, word2id, id2word, window_size, input_sentence, max_sentence_words = 12):
+def process_sentence(model, word2id, id2word, window_size, input_sentence, max_sentence_words = 12):
     """ analyzes the inout sentnces and reorders the word to form a senetnces which
     has the highest liklihood in the longuage model.
 
@@ -235,14 +156,16 @@ def correct_senetnce(model, word2id, id2word, window_size, input_sentence, max_s
         input_sentnce (text): input sentnce
         max_sentence_words: maximum number of words in a senetnce
     Returns:
-    most_likely_sentence: the word reordred senetnce that has highes liklihood in the longuage model
-    most_likely_word_order_prob: liklihood of the reordred sentence
+        most_likely_sentence: the word reordred senetnce that has highes liklihood in the longuage model
+        most_likely_word_order_prob: liklihood of the reordred sentence
     """
-    input_sentence = strip_punctuation(input_sentence)
+    input_sentence = strip_punctuations(input_sentence)
     input_sentence = input_sentence.lower()
     sentence_words = input_sentence.split()
-    print(sentence_words)
     sentence_words_id = [word2id[word] if word in word2id else word2id['<UNK>'] for word in sentence_words]
+
+    full_sentence_words_id = [word2id['<BGN>']] + sentence_words_id + [word2id['<EOS>']]
+    inout_word_order_prob, _ = analyze_sequence(model, full_sentence_words_id, max_sentence_words)
 
     sentence_words_id_permutations = []
     num_iterations = max(1, len(sentence_words_id) - window_size + 1)
@@ -255,10 +178,10 @@ def correct_senetnce(model, word2id, id2word, window_size, input_sentence, max_s
         for words_id_order_index in range(0, num_permutations):
             words_id_order = list(words_id_permutations[words_id_order_index])
             words_id_order = [word2id['<BGN>']] + words_id_order
-            if words_id_order_index == num_permutations-1:
+            if i == num_iterations-1:
                 words_id_order = words_id_order + [word2id['<EOS>']]
 
-            p_sentence, p_words = analyze_sentence(model, words_id_order, max_sentence_words)
+            p_sentence, p_words = analyze_sequence(model, words_id_order, max_sentence_words)
 
             words_id_permutations_prob.append(p_sentence)
 
@@ -271,16 +194,24 @@ def correct_senetnce(model, word2id, id2word, window_size, input_sentence, max_s
     most_likely_words_order = [id2word[id] for id in sentence_words_id]
     most_likely_sentence = ' '.join(most_likely_words_order)
 
-    return most_likely_sentence, most_likely_word_order_prob
+    return inout_word_order_prob, most_likely_sentence, most_likely_word_order_prob
 
 
+def config_gpu():
+    """ Configure tensorflow to run on GPU
+
+    """
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = 1
+    k.tensorflow_backend.set_session(tf.Session(config=config))
 
 def main():
 
     # construct the argument parser and parse the arguments
     ap = argparse.ArgumentParser()
     #ap.add_argument("-m", "--model", type=str, default="knn", help="type of python machine learning model to use")
-    ap.add_argument("-p", "--path",  type=str, default="./data/English.txt", help="Specify the data path")
+    ap.add_argument("-p", "--path",  type=str, default="./data/English.txt", help="Specify the data file path")
     ap.add_argument("-v", "--vsize", type=int, default=40000,                help="Specify the vocabulary size")
     ap.add_argument("-s", "--ssize", type=int, default=12,                   help="Specify maximum senetnce size (number of words)")
     ap.add_argument("-g", "--gpu",                                           help="Specify to use GPU for training the model", action='store_true')
@@ -293,35 +224,48 @@ def main():
     if use_gpu:
         config_gpu()
 
-    data = load_text(data_path)
-    cleaned_data = clean_text(data)
-    word2id, id2word = create_vocabulary(cleaned_data, vocab_size)
-    token_senetnces = tokenize_sentence(cleaned_data)
-    print(len(token_senetnces))
+    if os.path.isfile("models/English/word_lm-40.h5") == False:
 
-    X, y = prepare_data(word2id, token_senetnces[:16000], max_sentence_words)
+        data = load_text(data_path)
+        cleaned_data = clean_text(data)
+        word2id, id2word = create_vocabulary(cleaned_data, vocab_size)
+        token_senetnces = tokenize_sentence(cleaned_data)
+        print(len(token_senetnces))
+        X, y = prepare_data(word2id, token_senetnces[:16000], max_sentence_words)
 
-    if os.path.isfile("word_lm-40.h5") == False:
         model = create_model(vocab_size)
         model.summary()
-        model = train_model(model, X, y)
-        model.save('word_lm-new.h5')
-    else:
-        model = load_model('word_lm-40.h5')
 
-    #sentences = generate_text(model, word2id, id2word, 'to be or not to be  ' , 12, 10)
+        model = train_model(model, X, y)
+
+        model.save('models/English/word_lm-new.h5')
+
+        with open('meta_data.pickle','wb') as f:
+            pickle.dump([word2id, id2word], f)
+    else:
+        model = load_model('models/English/word_lm-40.h5')
+        with open('meta_data.pickle','rb') as f:
+            word2id, id2word = pickle.load(f)
+
+    #sentences = finish_sentence(model, word2id, id2word, 'to be or not to be  ' , 12, 10)
     #for sentence in sentences:
     #    print(sentence)
+
     # This is a test project
     # cat is there in a the room
-    # school will we to go
     # it will rain tomorrow
-    # solution proposed a they new
-    # are many there people agree do who not
-    corrected_setences, corrected_setences_liklihood = correct_senetnce(model, word2id, id2word, 5,
-                                                        input_sentence='are many there people agree do who not')
-
-    print(corrected_setences)
+    # the boy fall in love
+    input_sentence = 'day is bright and night is dark'
+    input_sentences_liklihood, corrected_sentence, corrected_sentence_liklihood = process_sentence(model, word2id, id2word, 5, input_sentence)
+    print('\nInput: ')
+    print(input_sentence)
+    print('Liklihood:')
+    print(input_sentences_liklihood)
+    print('\nCorrected: ')
+    print(corrected_sentence)
+    print('Liklihood:')
+    print(corrected_sentence_liklihood)
+    print('\n')
 
 if __name__ == '__main__':
     main()
