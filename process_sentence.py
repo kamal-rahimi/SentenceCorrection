@@ -1,4 +1,6 @@
 """
+Estimates the likihood of an input senetnce and finds an order of words
+that is most likely in the longuage model
 """
 
 import os
@@ -119,11 +121,6 @@ def main():
     else:
         print('No model with name \"%s\" is trained yet' % model_name)
 
-    # This is a test project
-    # cat is there in a the room
-    # it will rain tomorrow
-    # the boy fall in love
-    # 'day is bright and night is dark'
     input_sentences_liklihood, corrected_sentence, corrected_sentence_liklihood = process_sentence(model, word2id, id2word, window_size, input_sentence)
     print('\nInput: ')
     print(input_sentence)

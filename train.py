@@ -1,6 +1,6 @@
 """
-Word based longuage model to estimate the likihood of any senetnce
-and to correct word orders of the input sentence
+Builds a longuage model to estimate the liklihood of any sentence
+
 """
 
 import os
@@ -93,17 +93,17 @@ def main():
 
     # construct the argument parser and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-m", "--mname",  type=str, default="English",            help="specify the longuage model name")
+    ap.add_argument("-n", "--name",   type=str, default="English",            help="specify the longuage model name")
     ap.add_argument("-p", "--path",   type=str, default="./data/English.txt", help="Specify the train data path")
-    ap.add_argument("-n", "--nsentc", type=int, default=16000,                help="Specify the maximum number of senetnces to train model")
+    ap.add_argument("-c", "--count",  type=int, default=16000,                help="Specify the maximum number of senetnces to train model")
     ap.add_argument("-v", "--vsize",  type=int, default=40000,                help="Specify the vocabulary size")
-    ap.add_argument("-l", "--length", type=int, default=12,                   help="Specify the maximum senetnce length (number of words)")
+    ap.add_argument("-l", "--length", type=int, default=15,                   help="Specify the maximum senetnce length (number of words)")
     ap.add_argument("-e", "--epochs", type=int, default=100,                  help="Specify the number of epoch to train the model")
     ap.add_argument("-g", "--gpu",                                            help="Specify to use GPU for training the model", action='store_true')
     args = vars(ap.parse_args())
-    model_name         = args["mname"]
+    model_name         = args["name"]
     data_path          = args["path"]
-    num_sentences      = args["nsentc"]
+    num_sentences      = args["count"]
     vocab_size         = args["vsize"]
     max_sentence_words = args["length"]
     num_epochs         = args["epochs"]
@@ -117,7 +117,7 @@ def main():
     word2id, id2word = create_vocabulary(cleaned_data, vocab_size)
     token_senetnces = tokenize_sentence(cleaned_data)
     token_senetnces = token_senetnces[:num_sentences]
-    print("training longuage model %s using %d senetnces" % (model_name, len(token_senetnces)))
+    print("Training longuage model %s using %d sentences" % (model_name, len(token_senetnces)))
     X, y = prepare_data(word2id, token_senetnces, max_sentence_words)
 
     model = create_model(vocab_size)

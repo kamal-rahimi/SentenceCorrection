@@ -1,5 +1,5 @@
 """"
-Completes an input sequnce of words a sentnces (finish sentence)
+Completes an input sequnce of words  as a sentnces (finish sentence)
 
 """
 
@@ -63,14 +63,16 @@ def main():
 
     # construct the argument parser and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-m", "--mname",        type=str, default="English", help="specify the longuage model name")
+    ap.add_argument("-n", "--name",         type=str, default="English", help="specify the longuage model name")
     ap.add_argument("-s", "--sentence",     type=str, default="This is", help="specify the longuage model name")
-    ap.add_argument("-n", "--numsentences", type=int, default=5,         help="specify the number of sentnces to be generated")
+    ap.add_argument("-l", "--length",       type=int, default=12,        help="Specify the maximum senetnce length (number of words)")
+    ap.add_argument("-c", "--count",       type=int, default=5,        help="Specify the number of senetnces to be generated")
     ap.add_argument("-g", "--gpu",                                       help="Specify to use GPU for training the model", action='store_true')
     args = vars(ap.parse_args())
-    model_name = args["mname"]
+    model_name = args["name"]
     input_seq  = args['sentence']
-    num_sentences = args['numsentences']
+    max_sentence_words = args["length"]
+    num_sentences = args['count']
     use_gpu    = args["gpu"]
 
     if use_gpu:
@@ -85,7 +87,7 @@ def main():
     else:
         print('Model is not trained yet')
 
-    sentences = finish_sentence(model, word2id, id2word, input_seq, 12, num_sentences)
+    sentences = finish_sentence(model, word2id, id2word, input_seq, max_sentence_words, num_sentences)
     for sentence in sentences:
         print(sentence)
 
