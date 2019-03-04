@@ -9,11 +9,14 @@ import pickle
 
 from keras.preprocessing.sequence import pad_sequences
 from keras.models import Sequential, load_model
-from keras.layers import Embedding, LSTM, Dense, Activation
+from keras.layers import Embedding, LSTM, Dense, Activation, Dropout
+from keras.callbacks import EarlyStopping
 from keras import backend as k
 
 import numpy as np
 from numpy.random import choice
+
+from sklearn.model_selection import train_test_split
 
 from itertools import permutations
 
@@ -58,13 +61,13 @@ def create_model(vocab_size, embedding_dim=40):
     """
     model = Sequential([
         Embedding(input_dim=vocab_size, output_dim=embedding_dim, mask_zero=True),
-        LSTM(70, return_sequences=False),
+        LSTM(70, dropout=0.00, return_sequences=False),
         Dense(vocab_size),
         Activation('softmax'),
     ])
     return model
 
-def train_model(model, X, y, epochs=100):
+def train_model(model, X_train, X_valid, y_train, y_valid, epochs=100):
     """ Trains the keras model
     Args:
         model: sequential model
@@ -73,10 +76,12 @@ def train_model(model, X, y, epochs=100):
     Return:
         model: trained model
     """
+    #callbacks = [EarlyStopping(monitor='val_acc', patience=5)]
+    callbacks = [ModelCheckpoint('models/model.chkpt'), save_best_only=True, save_weights_only=False)]
     model.compile(loss='sparse_categorical_crossentropy',
                   optimizer='Nadam',
                   metrics=['accuracy'])
-    model.fit(X, y, epochs=epochs, verbose=2)
+    model.fit(X_train, y_train, epochs=epochs, callbacks=callbacks, verbose=2, validation_data=(X_valid,y_valid))
     return model
 
 
@@ -123,7 +128,8 @@ def main():
     model = create_model(vocab_size)
     model.summary()
 
-    model = train_model(model, X, y, num_epochs)
+    X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.05, random_state=42)
+    model = train_model(model, X_train, X_valid, y_train, y_valid, num_epochs)
 
     model_path = './models/' + model_name + '_model.h5'
     model.save(model_path)
