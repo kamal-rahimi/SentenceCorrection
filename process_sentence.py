@@ -9,6 +9,7 @@ import pickle
 
 from keras.models import load_model
 from keras.preprocessing.sequence import pad_sequences
+from keras import backend as k
 
 import numpy as np
 
@@ -41,7 +42,7 @@ def analyze_sequence(model, words_id_order, max_sentence_words):
 
     return p_sentence, p_words
 
-def process_sentence(model, word2id, id2word, window_size, input_sentence, max_sentence_words = 12):
+def process_sentence(model_name, input_sentence, window_size, max_sentence_words = 12):
     """ analyzes the inout sentnces and reorders the word to form a senetnces which
     has the highest liklihood in the longuage model.
 
@@ -56,6 +57,17 @@ def process_sentence(model, word2id, id2word, window_size, input_sentence, max_s
         most_likely_sentence: the word reordred senetnce that has highes liklihood in the longuage model
         most_likely_word_order_prob: liklihood of the reordred sentence
     """
+    model_path = './models/' + model_name + '_model.h5'
+    meta_data_path = './models/' + model_name + '_metadata.pickle'
+    if (os.path.isfile(model_path) == True) and (os.path.isfile(model_path) == True):
+        model = load_model(model_path)
+        with open(meta_data_path,'rb') as f:
+            word2id, id2word = pickle.load(f)
+    else:
+        print('No model with name \"%s\" is trained yet' % model_name)
+        return
+
+
     input_sentence = strip_punctuations(input_sentence)
     input_sentence = input_sentence.lower()
     sentence_words = input_sentence.split()
@@ -88,9 +100,10 @@ def process_sentence(model, word2id, id2word, window_size, input_sentence, max_s
 
         sentence_words_id = most_likely_words_id_order + sentence_words_id[window_size + i : ]
 
+    k.clear_session()
+
     most_likely_words_order = [id2word[id] for id in sentence_words_id]
     most_likely_sentence = ' '.join(most_likely_words_order)
-
     return inout_word_order_prob, most_likely_sentence, most_likely_word_order_prob
 
 
@@ -112,16 +125,7 @@ def main():
     if use_gpu:
         config_gpu()
 
-    model_path = './models/' + model_name + '_model.h5'
-    meta_data_path = './models/' + model_name + '_metadata.pickle'
-    if (os.path.isfile(model_path) == True) and (os.path.isfile(model_path) == True):
-        model = load_model(model_path)
-        with open(meta_data_path,'rb') as f:
-            word2id, id2word = pickle.load(f)
-    else:
-        print('No model with name \"%s\" is trained yet' % model_name)
-
-    input_sentences_liklihood, corrected_sentence, corrected_sentence_liklihood = process_sentence(model, word2id, id2word, window_size, input_sentence)
+    input_sentences_liklihood, corrected_sentence, corrected_sentence_liklihood = process_sentence(model_name, input_sentence, window_size)
     print('\nInput: ')
     print(input_sentence)
     print('Liklihood:')

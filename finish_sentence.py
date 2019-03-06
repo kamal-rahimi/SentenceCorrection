@@ -9,6 +9,7 @@ import pickle
 
 from keras.models import load_model
 from keras.preprocessing.sequence import pad_sequences
+from keras import backend as k
 
 import numpy as np
 from numpy.random import choice
@@ -17,7 +18,7 @@ from nlp_tools import strip_punctuations
 
 
 
-def finish_sentence(model, word2id, id2word, input_seq = [], max_sentence_words = 12, num_sentences = 1):
+def finish_sentence(model_name, input_seq = [], max_sentence_words = 12, num_sentences = 1):
     """ genrates a senetnce based on input words sequnce and the longuage model
     Args:
         model: trained longuage model object
@@ -30,6 +31,16 @@ def finish_sentence(model, word2id, id2word, input_seq = [], max_sentence_words 
     Return:
         sentences: a paython list of completed senetnces based on input sequnce
     """
+    model_path = './models/' + model_name + '_model.h5'
+    meta_data_path = './models/' + model_name + '_metadata.pickle'
+    if (os.path.isfile(model_path) == True) and (os.path.isfile(model_path) == True):
+        model = load_model(model_path)
+        with open(meta_data_path,'rb') as f:
+            word2id, id2word = pickle.load(f)
+    else:
+        print('No model with name \"%s\" is trained yet' % model_name)
+        return
+
     input_seq = strip_punctuations(input_seq)
     input_seq = input_seq.lower()
     input_seq_token_words = input_seq.split()
@@ -56,6 +67,7 @@ def finish_sentence(model, word2id, id2word, input_seq = [], max_sentence_words 
         senetnce = ' '.join(new_words)
         sentences.append(senetnce)
 
+    k.clear_session()
     return sentences
 
 
@@ -78,16 +90,7 @@ def main():
     if use_gpu:
         config_gpu()
 
-    model_path = './models/' + model_name + '_model.h5'
-    meta_data_path = './models/' + model_name + '_metadata.pickle'
-    if (os.path.isfile(model_path) == True) and (os.path.isfile(model_path) == True):
-        model = load_model(model_path)
-        with open(meta_data_path,'rb') as f:
-            word2id, id2word = pickle.load(f)
-    else:
-        print('Model is not trained yet')
-
-    sentences = finish_sentence(model, word2id, id2word, input_seq, max_sentence_words, num_sentences)
+    sentences = finish_sentence(model_name, input_seq, max_sentence_words, num_sentences)
     for sentence in sentences:
         print(sentence)
 

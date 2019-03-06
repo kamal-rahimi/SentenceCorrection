@@ -46,6 +46,7 @@ def prepare_data(word2id, token_sentences, max_sentence_words = 12 ):
             token_words_id_padded = [word2id[word] if word in word2id else word2id['<UNK>'] for word in token_words_padded]
             data.append(token_words_id_padded)
 
+    k.clear_session()
     data = np.array(data)
     X = data[:, :-1]
     y = data[:,-1]
@@ -77,7 +78,7 @@ def train_model(model, X_train, X_valid, y_train, y_valid, epochs=100):
         model: trained model
     """
     #callbacks = [EarlyStopping(monitor='val_acc', patience=5)]
-    callbacks = [ModelCheckpoint('models/model.chkpt'), save_best_only=True, save_weights_only=False)]
+    callbacks = [ModelCheckpoint('models/checkpoints/model.chkpt'), save_best_only=True, save_weights_only=False)]
     model.compile(loss='sparse_categorical_crossentropy',
                   optimizer='Nadam',
                   metrics=['accuracy'])
