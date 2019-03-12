@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Sentence words order correction (using a language model)</title>
+  <link rel="stylesheet" href="/static/css/main.css">
+  <ul>
+      <li><a href="/">Analyze Sentence</a></li>
+      <li><a href="/finish">Generate Senetnce</a></li>
+  </ul>
+</head>
+
+<body>
+  <div class="container">
+
+    <h1>
+      <center>Sentence creation/completion with <br>Recurrent Neural Networks</center>
+    </h1>
+
+    {% block content %}
+
+      {% for message in form.inputseq.errors %}
+      <div class="flash">{{ message }}</div>
+      {% endfor %}
+
+      <form method=post>
+        {{ form.inputseq.label }}
+        {{ form.inputseq }}
+        {{ form.submit }}
+      </form>
+
+    {% endblock %}
+
+  </div>
+
+</body>
+
+</html>
