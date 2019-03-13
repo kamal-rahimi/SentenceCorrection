@@ -1,5 +1,5 @@
 """"
-Completes an input sequnce of words  as a sentnces (finish sentence)
+Compeletes an input sequnce of words  as a sentnces (finish sentence)
 
 """
 
