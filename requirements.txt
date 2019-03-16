@@ -1,0 +1,8 @@
+argparse
+keras
+tensorflow
+numpy
+nltk
+flask
+wtforms
+
