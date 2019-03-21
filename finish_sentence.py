@@ -57,6 +57,7 @@ def finish_sentence(model_name, input_seq = [], max_sentence_words = 12, num_sen
             p = y_prob.reshape(-1,1)[:,0]
             a = np.array(range(0, vocab_size)).reshape(-1,1)[:,0]
             p[word2id['<UNK>']] = 0
+            #p = np.square(p)
             p = p / np.sum(p)
             predict_word = choice(a, p=p)
             seq.append(predict_word)

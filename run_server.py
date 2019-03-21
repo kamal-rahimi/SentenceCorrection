@@ -1,5 +1,6 @@
 """
-
+Creates a web interface (uisng flask) to analyze an input sentence and perform Word Order Correction,
+and also to finish an input sequence of words as sentence.
 """
 
 from flask import Flask, render_template, request

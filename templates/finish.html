@@ -19,10 +19,6 @@
 
     {% block content %}
 
-      {% for message in form.inputseq.errors %}
-      <div class="flash">{{ message }}</div>
-      {% endfor %}
-
       <form method=post>
         {{ form.inputseq.label }}
         {{ form.inputseq }}
