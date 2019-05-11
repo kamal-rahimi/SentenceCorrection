@@ -2,15 +2,49 @@
 
 ## Model description
 The model consists of an Embedding Layer followed by a uni-directional Recurrent Neural networks and a fully connected layer.
-The model is trained to predict the next word in a sentence, given previous words of the sentence. Cross enthropy is used to measure model performance with
-'accuracy' is the metric.
 
-Once the model is trained, the condidtional probability of each word of a senetnce, given its predecessor words, is estimated by the model.
-The sentence liklihood is calculated based condidtional probabilities of its words.
+The network stucture is depicted below: 
 
-To correct word order in a given input sentence, the model compares liklihood of sentences constcructed by a window-based permutations of words
-and outputs a sentence corresponding to a word order with the highest liklihood in the longuage model. The model is also used to finish an input sequence of words as a sentence
+
+							Predicted next word
+
+						       0 1 2 3 . . . . . 9999		   
+						       | | | | . . . . .   | 
+						      |---------------------|
+						      | 	softmax     |
+						      |---------------------|
+								|
+						     |-----------------------|
+						     | fully-connected (512) |
+						     | ACT: ELU              |
+						     |-----------------------|
+								|
+		       |-----------------------|		|
+		       |       LSTM (70)       |----------------|
+		       |-----------------------|
+			 	  |
+			|---------------------|
+			|Embedding (dim=40)   |
+			|Input size=10000     |
+			|---------------------|			
+			 | | | | . . . . .   |
+			 0 1 2 3 . . . . . 9999
+
+		       Input sentence word sequnce
+
+
+The model is trained to predict the next word in a sentence, given previous words of the sentence. Cross enthropy is used to measure model performance with 'accuracy' as the metric.
+
+Once the model is trained, the condidtional probability of each word of a sentence, given its predecessor words, is estimated by the model. The sentence liklihood is calculated based condidtional probabilities of its words. For instance, the probabity of seneynces compoised of words $w_1, w_2, ...w_n$ is calculates as:
+
+$P(w_1, w_2, ..., w_n) = P(w_1) x P(w_2|w_1) x ... x P(w_n | w_{n-1}, ...w_1)$
+
+where $P(w_i | w_{i-1}, ...w_1)$ is the output conditional probabity estimated by the network for i'th word given w_1 to w_{i-1}.
+
+To correct word order in a given input sentence, the model compares liklihood of sentences constcructed by a window-based permutations of words and outputs a sentence corresponding to a word order with the highest liklihood in the longuage model. The model is also used to finish an input sequence of words as a sentence
 by predicting next sentence words.
+
+
 
 ## How to use the model
  1. Directly running the scripts
